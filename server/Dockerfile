@@ -1,5 +1,5 @@
 # Dockerfile for Jarvis AI Backend
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
