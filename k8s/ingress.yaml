@@ -1,0 +1,100 @@
+---
+# Ingress for Ivy AI
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ivy-ai-ingress
+  namespace: ivy-ai
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.ivyai.dev
+    - app.ivyai.dev
+    secretName: ivy-ai-tls
+
+  rules:
+  - host: api.ivyai.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ivy-ai-api
+            port:
+              number: 8000
+
+  - host: app.ivyai.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ivy-ai-web
+            port:
+              number: 3000
+
+  - host: metrics.ivyai.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus
+            port:
+              number: 9090
+
+---
+# NetworkPolicy for internal communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ivy-ai-network-policy
+  namespace: ivy-ai
+spec:
+  podSelector:
+    matchLabels:
+      app: ivy-ai
+
+  policyTypes:
+  - Ingress
+  - Egress
+
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ivy-ai
+    - podSelector:
+        matchLabels:
+          app: ivy-ai
+    ports:
+    - protocol: TCP
+      port: 8000
+
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: ivy-ai
+    ports:
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 6379
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53

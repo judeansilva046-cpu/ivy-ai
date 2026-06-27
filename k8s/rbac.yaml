@@ -1,0 +1,77 @@
+---
+# ServiceAccount for Ivy AI
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ivy-ai
+  namespace: ivy-ai
+
+---
+# Role for Ivy AI
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ivy-ai-role
+  namespace: ivy-ai
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list"]
+
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "create", "delete"]
+
+---
+# RoleBinding for Ivy AI
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ivy-ai-rolebinding
+  namespace: ivy-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ivy-ai-role
+subjects:
+- kind: ServiceAccount
+  name: ivy-ai
+  namespace: ivy-ai
+
+---
+# ClusterRole for read-only access to cluster info
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ivy-ai-cluster-read
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
+
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ivy-ai-cluster-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ivy-ai-cluster-read
+subjects:
+- kind: ServiceAccount
+  name: ivy-ai
+  namespace: ivy-ai

@@ -1,0 +1,11 @@
+{"timestamp": "2026-06-27T04:41:53.213030", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 01 - Empresa - VertexCode.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.228493", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 02 - Manual da Ivy.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.245294", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 03 - Serviços.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.257735", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 04 - FAQ.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.271456", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 05 - Processos Internos.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.281049", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 06 - Segurança da Informação.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.294721", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 07 - Atendimento ao Cliente.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.304233", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 08 - Tecnologias Utilizadas.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.316462", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 09 - Estrutura Organizacional.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.329826", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded PDF: 10 - Projetos.pdf (1 pages)", "module": "loader", "function": "load_pdf", "line": 51}
+{"timestamp": "2026-06-27T04:41:53.332027", "level": "INFO", "logger": "app.rag.loader", "message": "Loaded 10 documents from C:\\\\JarvisAI\\\\documents", "module": "loader", "function": "load_from_directory", "line": 122}

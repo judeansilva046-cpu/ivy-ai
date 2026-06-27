@@ -1,0 +1,363 @@
+---
+# Ivy AI API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ivy-ai-api
+  namespace: ivy-ai
+  labels:
+    app: ivy-ai
+    component: api
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  selector:
+    matchLabels:
+      app: ivy-ai
+      component: api
+
+  template:
+    metadata:
+      labels:
+        app: ivy-ai
+        component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      serviceAccountName: ivy-ai
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - ivy-ai
+              topologyKey: kubernetes.io/hostname
+
+      containers:
+      - name: api
+        image: ivy-ai:latest
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8000
+          protocol: TCP
+
+        env:
+        - name: API_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: ivy-ai-config
+              key: API_ENV
+
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ivy-ai-config
+              key: LOG_LEVEL
+
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: DATABASE_URL
+
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: REDIS_URL
+
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: JWT_SECRET_KEY
+
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 1
+          timeoutSeconds: 3
+          failureThreshold: 30
+
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/ivy-ai
+        - name: tmp
+          mountPath: /tmp
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+
+---
+# Ivy AI Worker Deployment (for background tasks)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ivy-ai-worker
+  namespace: ivy-ai
+  labels:
+    app: ivy-ai
+    component: worker
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+
+  selector:
+    matchLabels:
+      app: ivy-ai
+      component: worker
+
+  template:
+    metadata:
+      labels:
+        app: ivy-ai
+        component: worker
+
+    spec:
+      serviceAccountName: ivy-ai
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+
+      containers:
+      - name: worker
+        image: ivy-ai:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - celery
+        - -A
+        - app.tasks
+        - worker
+        - -l
+        - info
+        - -c
+        - "4"
+
+        env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ivy-ai-config
+              key: LOG_LEVEL
+
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: REDIS_URL
+
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/ivy-ai
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+
+      volumes:
+      - name: logs
+        emptyDir: {}
+
+---
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ivy-ai
+spec:
+  serviceName: postgres
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: postgres
+
+  template:
+    metadata:
+      labels:
+        app: postgres
+
+    spec:
+      securityContext:
+        fsGroup: 999
+
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+
+        env:
+        - name: POSTGRES_DB
+          value: ivy_ai
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: DB_PASSWORD
+
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 20Gi
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: ivy-ai
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: redis
+
+  template:
+    metadata:
+      labels:
+        app: redis
+
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+
+        command:
+        - redis-server
+        - --requirepass
+        - $(REDIS_PASSWORD)
+
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ivy-ai-secrets
+              key: REDIS_PASSWORD
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+
+        volumeMounts:
+        - name: data
+          mountPath: /data
+
+      volumes:
+      - name: data
+        emptyDir: {}

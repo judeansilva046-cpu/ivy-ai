@@ -1,0 +1,1 @@
+{"timestamp": "2026-06-27T04:52:43.758143", "level": "INFO", "logger": "app.memory.history", "message": "ChatHistory initialized", "module": "history", "function": "__init__", "line": 18}

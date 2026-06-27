@@ -1,0 +1,225 @@
+---
+# Prometheus ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: ivy-ai
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'ivy-ai'
+        environment: 'production'
+
+    scrape_configs:
+    - job_name: 'ivy-ai-api'
+      scrape_interval: 10s
+      metrics_path: '/metrics'
+      static_configs:
+      - targets: ['ivy-ai-api:8000']
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+
+    - job_name: 'kubernetes-pods'
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+
+    - job_name: 'postgres'
+      static_configs:
+      - targets: ['postgres-exporter:9187']
+
+    - job_name: 'redis'
+      static_configs:
+      - targets: ['redis-exporter:9121']
+
+    alerting:
+      alertmanagers:
+      - static_configs:
+        - targets: ['alertmanager:9093']
+
+    rule_files:
+    - '/etc/prometheus/rules/*.yml'
+
+---
+# Prometheus Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: ivy-ai
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: prometheus
+
+  template:
+    metadata:
+      labels:
+        app: prometheus
+
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        args:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--storage.tsdb.retention.time=30d'
+
+        ports:
+        - containerPort: 9090
+
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: storage
+          mountPath: /prometheus
+
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: storage
+        emptyDir: {}
+
+---
+# Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: ivy-ai
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+
+  selector:
+    app: prometheus
+
+---
+# ServiceMonitor for Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ivy-ai-api
+  namespace: ivy-ai
+spec:
+  selector:
+    matchLabels:
+      app: ivy-ai
+      component: api
+
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+# PrometheusRule for Alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ivy-ai-alerts
+  namespace: ivy-ai
+spec:
+  groups:
+  - name: ivy-ai
+    interval: 30s
+    rules:
+    - alert: HighErrorRate
+      expr: |
+        (sum(rate(http_requests_total{status=~"5.."}[5m])) /
+         sum(rate(http_requests_total[5m]))) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value | humanizePercentage }}"
+
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High request latency"
+        description: "P99 latency is {{ $value }}s"
+
+    - alert: HighMemoryUsage
+      expr: |
+        (container_memory_usage_bytes{pod=~"ivy-ai-.*"} /
+         container_spec_memory_limit_bytes) > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage in {{ $labels.pod }}"
+
+    - alert: HighCPUUsage
+      expr: |
+        (rate(container_cpu_usage_seconds_total{pod=~"ivy-ai-.*"}[5m]) * 100) > 80
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage in {{ $labels.pod }}"
+
+    - alert: DatabaseConnectionPoolExhausted
+      expr: |
+        db_connection_pool_available < 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Database connection pool exhausted"
+
+    - alert: RedisDown
+      expr: |
+        redis_up == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Redis is down"
+
+    - alert: PodCrashLooping
+      expr: |
+        increase(kube_pod_container_status_restarts_total[15m]) > 5
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod {{ $labels.pod }} is crash looping"

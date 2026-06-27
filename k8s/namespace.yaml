@@ -1,0 +1,9 @@
+---
+# Kubernetes Namespace for Ivy AI
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ivy-ai
+  labels:
+    app: ivy-ai
+    environment: production

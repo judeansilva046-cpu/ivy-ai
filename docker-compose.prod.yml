@@ -1,0 +1,86 @@
+# ETAPA 13: Production Multi-Container Setup
+version: '3.8'
+
+services:
+  # API Server
+  api:
+    build: .
+    container_name: ivy-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://ivy:password@postgres:5432/ivy_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - ENVIRONMENT=production
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ivy-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ivy-postgres
+    environment:
+      - POSTGRES_USER=ivy
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=ivy_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ivy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ivy-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ivy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ivy-network
+    restart: unless-stopped
+
+  # Qdrant Vector DB
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ivy-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - ivy-network
+    restart: unless-stopped
+
+networks:
+  ivy-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:

@@ -1,0 +1,242 @@
+openapi: 3.0.0
+info:
+  title: Ivy AI API
+  description: Multi-agent AI assistant platform
+  version: 1.0.0
+  contact:
+    name: Ivy AI Support
+    url: https://ivyai.dev/support
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.ivyai.dev
+    description: Production
+  - url: http://localhost:8000
+    description: Development
+
+tags:
+  - name: Chat
+    description: Chat and messaging endpoints
+  - name: Agents
+    description: Agent management
+  - name: Tools
+    description: Tool execution
+  - name: Plugins
+    description: Plugin marketplace
+  - name: Admin
+    description: Admin operations
+
+paths:
+  /chat:
+    post:
+      summary: Send chat message
+      tags:
+        - Chat
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                agent_id:
+                  type: string
+                conversation_id:
+                  type: string
+      responses:
+        '200':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: string
+                  content:
+                    type: string
+                  timestamp:
+                    type: string
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /agent/list:
+    get:
+      summary: List all agents
+      tags:
+        - Agents
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Agent'
+        '401':
+          description: Unauthorized
+
+  /agent/{agent_id}/execute:
+    post:
+      summary: Execute agent
+      tags:
+        - Agents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                input:
+                  type: object
+      responses:
+        '200':
+          description: Agent executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                  output:
+                    type: object
+                  status:
+                    type: string
+
+  /tool/{tool_id}/execute:
+    post:
+      summary: Execute tool
+      tags:
+        - Tools
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tool_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Tool executed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /plugin-marketplace/plugins:
+    get:
+      summary: List plugins
+      tags:
+        - Plugins
+      parameters:
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: List of plugins
+
+  /admin/dashboard:
+    get:
+      summary: Admin dashboard
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard metrics
+
+  /admin/health:
+    get:
+      summary: System health
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [core, code, research, vision, voice]
+        description:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, inactive, maintenance]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        sender_id:
+          type: string
+        timestamp:
+          type: string
+        conversation_id:
+          type: string
